@@ -52,6 +52,13 @@ Re-scrape the data:
 ```bash
 python scrape_steam_news.py
 ```
+Search the records with BM25:
+
+```bash
+python -m patchdiff.bm25 "damage"                     # top 10 results
+python -m patchdiff.bm25 "cooldown nerf" --k 5        # top 5
+python -m patchdiff.bm25 "damage" --db sqlite.db      # choose a database file
+```
 
 ## Labels
 
