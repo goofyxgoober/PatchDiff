@@ -4,3 +4,6 @@ CLAUDE.md
 project-requirements.pdf
 .env
 __pycache__
+checkpoint3/
+data/test.db
+.claude/

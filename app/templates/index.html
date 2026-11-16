@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PatchDiff</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="masthead">
+    <a class="wordmark" href="/">PatchDiff</a>
+  </header>
+
+  <form class="search" id="search-form" role="search">
+    <label class="sr" for="q">Search patch notes</label>
+    <input id="q" type="search" placeholder="An item, a stat, or a question like &ldquo;how many times was the aug changed&rdquo;" autocomplete="off" spellcheck="false" autofocus>
+    <button type="submit">Search</button>
+  </form>
+
+  <div class="ledger">
+    <aside class="rail">
+      <div class="field">
+        <label for="game">Game</label>
+        <select id="game"><option value="">Every game</option></select>
+      </div>
+
+      <div class="field">
+        <span class="field-name">Years</span>
+        <div class="years">
+          <input id="from" type="number" min="2010" max="2030" placeholder="from" aria-label="From year">
+          <span aria-hidden="true">to</span>
+          <input id="to" type="number" min="2010" max="2030" placeholder="to" aria-label="To year">
+        </div>
+      </div>
+
+      <fieldset class="field types" id="types">
+        <legend class="field-name">Change</legend>
+        <button type="button" class="type on" data-type=""><span class="glyph">&lowast;</span>Any change</button>
+        <button type="button" class="type buff" data-type="buff"><span class="glyph">&uarr;</span>Buff</button>
+        <button type="button" class="type nerf" data-type="nerf"><span class="glyph">&darr;</span>Nerf</button>
+        <button type="button" class="type bug_fix" data-type="bug_fix"><span class="glyph">&check;</span>Bug fix</button>
+        <button type="button" class="type new_content" data-type="new_content"><span class="glyph">+</span>New content</button>
+      </fieldset>
+
+      <div class="field asks">
+        <span class="field-name">Try asking</span>
+        <ul id="examples">
+          <li><a href="?q=recoil+nerf">recoil nerf</a></li>
+          <li><a href="?q=c4+radius">c4 radius</a></li>
+          <li><a href="?q=how+many+times+was+the+aug+changed">how many times was the aug changed</a></li>
+          <li><a href="?q=which+items+were+changed+2+or+more+times">which items were changed 2 or more times</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <main class="sheet" id="sheet">
+      <section class="intro" id="intro">
+        <h1>What changed, and when.</h1>
+        <p class="lede">PatchDiff reads Steam patch notes and splits every bullet into one change: the item, what happened to it, and the numbers before and after. Search them all at once instead of scrolling post by post.</p>
+        <div class="specimen" id="specimen" hidden></div>
+      </section>
+
+      <p class="status" id="status" aria-live="polite"></p>
+      <div id="results"></div>
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

@@ -119,7 +119,10 @@ def extract(conn, llm, n=20):
         batch = rows[s:s + n]
         lines = [f"[{i}] section: {r['section']} | parent: {r['parent']} | text: {r['text'][:500]}"
                  for i, r in enumerate(batch)]
-        reply = llm.invoke(PROMPT + "\n".join(lines)).content
+        msg = llm.invoke(PROMPT + "\n".join(lines))
+        if s == 0:
+            print("model:", msg.response_metadata.get("model_name"))  # what actually answered
+        reply = msg.content
         try:
             data = json.loads(reply[reply.find("["):reply.rfind("]") + 1])
         except json.JSONDecodeError:
@@ -135,6 +138,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-llm", action="store_true")
     ap.add_argument("--limit-posts", type=int)
+    ap.add_argument("--per-game", type=int, help="only the newest N patch posts of each game")
     ap.add_argument("--db", default="data/patchdiff.db")
     args = ap.parse_args()
  
@@ -144,6 +148,14 @@ def main():
     except Exception:
         model = None  # falls back to title rules
     posts = [p for p in load_posts() if (model.predict(p) if model else weak_label(p)) == PATCH]
+    if args.per_game:
+        # newest first inside each game, keep the top n of each
+        by_game = {}
+        for p in sorted(posts, key=lambda p: int(p.get("date") or 0), reverse=True):
+            by_game.setdefault(p.get("game"), []).append(p)
+        posts = []
+        for game in by_game:
+            posts += by_game[game][:args.per_game]
     posts.sort(key=lambda p: int(p.get("date") or 0))
  
     Path(args.db).parent.mkdir(parents=True, exist_ok=True)
@@ -163,8 +175,11 @@ def main():
  
     if not args.no_llm:
         from langchain_openai import ChatOpenAI
-        extract(conn, ChatOpenAI(model="gpt-4o-mini", temperature=0, max_tokens=4096,
-                             api_key=os.environ["OPENAI_API_KEY"]))
+        # openrouter speaks the openai api, so only the url and model name change
+        # gpt-oss is a reasoning model, its thinking counts against max_tokens so leave room
+        extract(conn, ChatOpenAI(model=os.environ.get("LLM_MODEL", "openai/gpt-oss-120b"),
+                                 base_url=os.environ.get("OPENAI_BASE_URL", "https://openrouter.ai/api/v1"),
+                                 temperature=0, max_tokens=12000, api_key=os.environ["OPENAI_API_KEY"]))
  
  
 if __name__ == "__main__":

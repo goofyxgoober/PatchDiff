@@ -1,83 +1,113 @@
 # PatchDiff
 
-A search engine for video game patch notes built on Steam news posts. Most Steam posts are not patch notes (events, esports, store sales), so the first step is a text classifier that filters posts down to the ones that are.
+A search engine for video game patch notes. PatchDiff turns Steam patch posts into individual changes (item, change type, stat, old → new value) that you can search all at once.
 
-## Checkpoint 2: core algorithm (patch-note classifier)
+Games: Counter-Strike 2, Dota 2, Apex Legends, PUBG: Battlegrounds and Rainbow Six Siege.
 
-Four binary classifiers (`patch_notes` vs `other`), written from scratch in plain Python:
+## Run the UI
 
-| Model | File | Idea |
-|---|---|---|
-| Keyword baseline | `patchdiff/classifiers/baseline.py` | count patch words ("fixed", "reduced", "nerf", ...) in the body |
-| Multinomial Naive Bayes | `patchdiff/classifiers/naive_bayes.py` | log prior + add-1 smoothed log P(word \| class) |
-| Rocchio | `patchdiff/classifiers/rocchio.py` | tf-idf class centroids, nearest centroid wins |
-| kNN | `patchdiff/classifiers/knn.py` | cosine similarity on tf-idf, majority vote of k neighbors |
+You need Python 3.10+. You don't need an API key: the UI reads the sample database in the repo (`data/patchdiff.db`).
 
-Shared pieces: `patchdiff/preprocess.py` (strip Steam BBCode/HTML, tokenize, stopwords) and `patchdiff/vectorize.py` (tf-idf, cosine).
-
-## Setup
-
-Python 3.10+. The classifiers only use the standard library; `requests` is needed for the scraper and the ingest job.
+**1. Install** (first time only):
 
 ```bash
 python -m venv venv
-venv\Scripts\activate          # macOS/Linux: source venv/bin/activate
+venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## Run
+On macOS/Linux, activate with `source venv/bin/activate`.
 
-Tests on a small hand-made corpus (no install needed):
-
-```bash
-python -m unittest discover tests -v
-```
-
-Train and evaluate all four models on the scraped data (~20 s):
+**2. Start the server:**
 
 ```bash
-python -m patchdiff.evaluate
+python -m app.server
 ```
 
-This prints precision, recall, F1, accuracy and confusion counts on dev and test splits, and saves the best model (by dev F1) to `models/best.json`.
+**3. Open** http://localhost:5000. Stop the server with `Ctrl+C`.
 
-Run the weekly ingest job locally (fetches the newest posts and keeps the patch notes):
+Options: `--db data/test.db` uses another database, and `--port 8000` uses another port.
+
+### Things to try
+
+| Type | You get |
+|---|---|
+| `aug`, `c4 radius` | Matching changes, ranked |
+| `recoil nerf` | The same, and "nerf" is also searched as *reduced, decreased, lowered* |
+| `how many times was the aug changed` | The item's history, grouped by patch |
+| `which items were nerfed 2 or more times` | A table of items and their counts |
+
+Filter by game, year or change type on the left. Click an item name to see its history.
+
+### If something's off
+
+- **`No module named 'flask'`:** the venv isn't active. Rerun step 1.
+- **Port 5000 is busy:** use `--port 8000`.
+- **Changes don't show up:** restart the server. It loads the page template and database at startup.
+- **Only 2014 CS/Dota results:** the included database is a small sample. [Build a bigger one](#build-the-database).
+
+## Build the database
+
+This is optional. It extracts changes with an LLM through [OpenRouter](https://openrouter.ai).
+
+**1.** Create a `.env` file in the project folder (it's gitignored):
+
+```
+OPENAI_API_KEY=your-openrouter-key
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+LLM_MODEL=openai/gpt-oss-120b
+```
+
+**2.** Extract the newest posts of each game, starting small:
 
 ```bash
-python -m lambda_ingest.handler --appid 570 730 --days 30 --dry-run
+python -m patchdiff.records --per-game 1 --db data/test.db
 ```
 
-Re-scrape the data:
+**3.** Point the UI at it:
 
 ```bash
-python scrape_steam_news.py
-```
-Search the records with BM25:
-
-```bash
-python -m patchdiff.bm25 "damage"                     # top 10 results
-python -m patchdiff.bm25 "cooldown nerf" --k 5        # top 5
-python -m patchdiff.bm25 "damage" --db sqlite.db      # choose a database file
+python -m app.server --db data/test.db
 ```
 
-## Labels
+Running step 2 again resumes where it stopped. Other options: `--no-llm` splits posts into bullets only (no item or change type), and `--limit-posts N` takes the oldest N posts overall.
 
-- **Training labels** are weak labels from post titles (`patchdiff/labels.py`): titles like "7.36a Gameplay Patch" or "Release Notes for ..." count as `patch_notes`, with exceptions for "Store Update", "Battle Pass Update", etc. The models only see the post **body**, never the title, so they can't just copy the rule.
-- **Gold labels** are for the final evaluation and are labeled by hand. `python -m patchdiff.labels` writes 200 candidate posts (40 per game, both classes) to `data/labels/gold_candidates.csv`. Fill in the `label` column and save it as `data/labels/gold_posts.csv`. `evaluate` then also scores every model on the gold set and keeps those posts out of training.
+## Other commands
 
-## Results
+| Command | What it does |
+|---|---|
+| `python -m unittest discover tests` | Runs the tests |
+| `python -m patchdiff.evaluate` | Trains and scores the classifiers, saves the best to `models/best.json` |
+| `python -m patchdiff.bm25 "aug recoil"` | Searches from the terminal |
+| `python scrape_steam_news.py` | Fetches new Steam posts (only the ones you don't have yet) |
+| `python -m lambda_ingest.handler --days 30 --dry-run` | Runs the weekly ingest job locally |
 
-Gold set: 200 hand-labeled posts (90 `patch_notes`, 110 `other`), never used for training or tuning. Hyperparameters (keyword threshold, k) were picked on the dev split.
+## Project layout
 
-| Model | P | R | F1 | Acc |
+```
+app/                 the web UI (Flask server, page, CSS, JS)
+patchdiff/           classifiers, record extraction (records.py), BM25 search (bm25.py)
+lambda_ingest/       weekly ingest job
+scrape_steam_news.py Steam scraper
+data/                scraped posts, hand labels, records database
+models/best.json     the trained classifier
+tests/               unit tests
+```
+
+## Classifier results
+
+Most Steam posts aren't patch notes, so four classifiers written from scratch filter them. Each one is trained on weak labels from post titles but only sees the post body. They're scored on 200 posts labeled by hand:
+
+| Model | Precision | Recall | F1 | Accuracy |
 |---|---|---|---|---|
-| Keyword baseline (hits=2) | 0.764 | 0.756 | 0.760 | 0.785 |
+| Keyword baseline | 0.764 | 0.756 | 0.760 | 0.785 |
 | **Naive Bayes** | **0.851** | **0.889** | **0.870** | **0.880** |
 | Rocchio | 0.822 | 0.822 | 0.822 | 0.840 |
 | kNN (k=3) | 0.743 | 0.867 | 0.800 | 0.805 |
 
-Naive Bayes is also best on the dev split, so it is the model saved to `models/best.json` and used by the ingest job. On the weak-label test split (567 posts) the order is the same: NB 0.821 F1, Rocchio 0.790, keyword 0.727, kNN 0.721.
+Naive Bayes is the model the rest of the pipeline uses.
 
 ## Data
 
-`data/<appid>_<game>/posts.jsonl`: about 4,000 developer announcements from Counter-Strike 2, Dota 2, Apex Legends, PUBG and Rainbow Six Siege, collected with `scrape_steam_news.py` from Steam's `ISteamNews/GetNewsForApp` API.
+- **Posts:** about 4,000 developer posts from Steam's public news API, in `data/<appid>_<game>/posts.jsonl`.
+- **Records:** `data/patchdiff.db` holds one row per extracted change. The included copy is a 200-record sample.
