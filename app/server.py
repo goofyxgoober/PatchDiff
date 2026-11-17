@@ -174,11 +174,12 @@ def search():
         for word in tokenize(query, remove_stopwords=False):
             if not asked_type and word in TYPE_WORDS:
                 asked_type = TYPE_WORDS[word]
+        # check "which" first, words like "items" can also be an extracted item name
+        if re.search(r"\bwhich\b", query, re.I):
+            return jsonify({"mode": "leaderboard", "query": query, "leaderboard": leaderboard(query, game, asked_type)})
         item = find_item(query, game)
         if item:
             return jsonify({"mode": "timeline", "query": query, "timeline": timeline_for(item, game)})
-        if re.search(r"\bwhich\b", query, re.I):
-            return jsonify({"mode": "leaderboard", "query": query, "leaderboard": leaderboard(query, game, asked_type)})
 
     added = expand(query)
     full_query = query + " " + " ".join(added)

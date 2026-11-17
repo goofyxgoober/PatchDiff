@@ -6,7 +6,7 @@ Games: Counter-Strike 2, Dota 2, Apex Legends, PUBG: Battlegrounds and Rainbow S
 
 ## Run the UI
 
-You need Python 3.10+. You don't need an API key: the UI reads the sample database in the repo (`data/patchdiff.db`).
+You need Python 3.10+. You don't need an API key: the UI reads the demo database in the repo (`data/demo.db`). It has 1,933 changes from the 10 newest patch posts of each game (July 2023 to October 2026).
 
 **1. Install** (first time only):
 
@@ -21,21 +21,22 @@ On macOS/Linux, activate with `source venv/bin/activate`.
 **2. Start the server:**
 
 ```bash
-python -m app.server
+python -m app.server --db data/demo.db
 ```
 
 **3. Open** http://localhost:5000. Stop the server with `Ctrl+C`.
 
-Options: `--db data/test.db` uses another database, and `--port 8000` uses another port.
+Options: `--db` picks the database (without it, the server uses the old 200-record sample `data/patchdiff.db`), and `--port 8000` uses another port.
 
 ### Things to try
 
 | Type | You get |
 |---|---|
-| `aug`, `c4 radius` | Matching changes, ranked |
-| `recoil nerf` | The same, and "nerf" is also searched as *reduced, decreased, lowered* |
-| `how many times was the aug changed` | The item's history, grouped by patch |
-| `which items were nerfed 2 or more times` | A table of items and their counts |
+| `aug`, `recoil` | Matching changes, ranked |
+| `damage nerf` | The same, and "nerf" is also searched as *reduced, decreased, lowered* |
+| `how many times was the dragunov changed` | The item's history, grouped by patch |
+| `which items were changed 5 or more times` | A table of items and their counts |
+| `pudge hook` | The "nothing matched" message |
 
 Filter by game, year or change type on the left. Click an item name to see its history.
 
@@ -44,7 +45,8 @@ Filter by game, year or change type on the left. Click an item name to see its h
 - **`No module named 'flask'`:** the venv isn't active. Rerun step 1.
 - **Port 5000 is busy:** use `--port 8000`.
 - **Changes don't show up:** restart the server. It loads the page template and database at startup.
-- **Only 2014 CS/Dota results:** the included database is a small sample. [Build a bigger one](#build-the-database).
+- **Only 2014 CS/Dota results:** you started without `--db data/demo.db`, so the server loaded the old sample. Restart it with the flag.
+- **A search finds nothing you expected:** the demo database only has 50 posts. [Build a bigger one](#build-the-database).
 
 ## Build the database
 
@@ -63,6 +65,8 @@ LLM_MODEL=openai/gpt-oss-120b
 ```bash
 python -m patchdiff.records --per-game 1 --db data/test.db
 ```
+
+`data/demo.db` was built the same way with `--per-game 10`.
 
 **3.** Point the UI at it:
 
@@ -110,4 +114,4 @@ Naive Bayes is the model the rest of the pipeline uses.
 ## Data
 
 - **Posts:** about 4,000 developer posts from Steam's public news API, in `data/<appid>_<game>/posts.jsonl`.
-- **Records:** `data/patchdiff.db` holds one row per extracted change. The included copy is a 200-record sample.
+- **Records:** each database holds one row per extracted change. `data/demo.db` (1,933 records, all 5 games) is the one to run the UI with. `data/patchdiff.db` is an older 200-record sample of 2013–2014 CS and Dota posts.
